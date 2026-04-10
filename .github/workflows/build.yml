@@ -1,0 +1,60 @@
+name: Build OpenWrt for DIR-853 A3
+
+on:
+  workflow_dispatch: # 수동으로 빌드 버튼을 활성화합니다.
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang flex gawk gettext \
+            git libncurses5-dev libssl-dev python3-distutils rsync unzip zlib1g-dev \
+            swig libpython3-dev findutils
+
+      - name: Clone OpenWrt Source
+        run: git clone --depth 1 --branch v25.12.2 https://github.com/openwrt/openwrt.git openwrt
+
+      - name: Update & Install Feeds
+        working-directory: ./openwrt
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: Apply Custom Patch
+        run: |
+          # 리포지토리의 patches 폴더에 있는 파일을 OpenWrt 소스 트리 내부로 복사합니다.
+          mkdir -p openwrt/package/kernel/mt76/patches
+          cp patches/001-fix-expa-power.patch openwrt/package/kernel/mt76/patches/
+
+      - name: Configure Firmware
+        working-directory: ./openwrt
+        run: |
+          # DIR-853 A3 타겟 설정 생성
+          echo "CONFIG_TARGET_ramips=y" > .config
+          echo "CONFIG_TARGET_ramips_mt7621=y" >> .config
+          echo "CONFIG_TARGET_ramips_mt7621_DEVICE_dlink_dir-853-a3=y" >> .config
+          make defconfig
+
+      - name: Build Firmware
+        working-directory: ./openwrt
+        run: |
+          # 빌드 시작 (CPU 코어 수만큼 병렬 처리, 실패 시 상세 로그 출력)
+          make -j$(nproc) || make -j1 V=s
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenWrt_DIR-853-A3_Firmware
+          path: openwrt/bin/targets/ramips/mt7621/*.bin
