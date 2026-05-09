@@ -24,7 +24,7 @@ jobs:
             swig libpython3-dev findutils
 
       - name: Clone OpenWrt Source
-        run: git clone --depth 1 --branch v25.12.2 https://github.com/openwrt/openwrt.git openwrt
+        run: git clone --depth 1 --branch v25.12.3 https://github.com/openwrt/openwrt.git openwrt
 
       - name: Update & Install Feeds
         working-directory: ./openwrt
